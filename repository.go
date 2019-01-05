@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"gopkg.in/src-d/go-git.v4"
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
@@ -29,13 +29,14 @@ var (
 )
 
 func Init(opt *InitOptions) (*Repository, error) {
+	os.MkdirAll(opt.Path, 0744)
+
 	f, _ := os.Open(opt.Path)
 	if _, err := f.Readdirnames(1); err != io.EOF {
 		return nil, ErrInitNotEmpty
 	}
 
 	// Make new directories.
-	os.MkdirAll(opt.Path, 0744)
 	os.Mkdir(opt.Path+"/docs", 0744)
 
 	r, err := git.PlainInit(opt.Path, false)
