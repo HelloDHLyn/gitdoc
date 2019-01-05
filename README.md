@@ -1,3 +1,8 @@
+[![](https://img.shields.io/circleci/project/github/HelloDHLyn/gitdoc.svg?style=for-the-badge&logo=circleci&maxAge=3600)](https://circleci.com/gh/HelloDHLyn/gitdoc)
+[![](https://img.shields.io/codecov/c/github/hellodhlyn/gitdoc.svg?style=for-the-badge&maxAge=3600)](https://codecov.io/gh/HelloDHLyn/gitdoc)
+[![](https://img.shields.io/github/languages/top/hellodhlyn/gitdoc.svg?style=for-the-badge&colorB=375eab&maxAge=3600)](#)
+[![](https://img.shields.io/github/license/hellodhlyn/gitdoc.svg?style=for-the-badge&maxAge=3600)](https://opensource.org/licenses/MIT)
+
 # gitdoc
 
 > Document management module using Git.
