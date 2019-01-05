@@ -7,16 +7,21 @@ import (
 	"io/ioutil"
 	"time"
 
-	"gopkg.in/src-d/go-git.v4"
+	"github.com/sergi/go-diff/diffmatchpatch"
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type Document struct {
-	ID           string
-	RevisionHash string
-	Body         string
-	UpdatedAt    *time.Time
+	ID       string
+	Body     string
+	Revision DocumentRevision
+}
+
+type DocumentRevision struct {
+	Hash      string
+	UpdatedAt *time.Time
 }
 
 var (
@@ -25,6 +30,8 @@ var (
 
 	ErrCreateDocument = errors.New("failed to create document")
 	ErrGetDocument    = errors.New("failed to open document")
+
+	ErrInvalidOption = errors.New("invalid option")
 )
 
 func (r *Repository) getDocumentPath(id string) string {
@@ -66,10 +73,12 @@ func (r *Repository) CreateDocument(id string, body string) (*Document, error) {
 	}
 
 	return &Document{
-		ID:           id,
-		RevisionHash: hash.String(),
-		Body:         body,
-		UpdatedAt:    &now,
+		ID:   id,
+		Body: body,
+		Revision: DocumentRevision{
+			Hash:      hash.String(),
+			UpdatedAt: &now,
+		},
 	}, nil
 }
 
@@ -82,7 +91,10 @@ func (r *Repository) GetDocument(id string) (*Document, error) {
 // GetDocumentAtRevision returns specific revision of the document.
 func (r *Repository) GetDocumentAtRevision(id string, revisionHash string) (*Document, error) {
 	hash, _ := r.gitRepo.ResolveRevision(plumbing.Revision(revisionHash))
-	commit, _ := r.gitRepo.Object(plumbing.CommitObject, *hash)
+	commit, err := r.gitRepo.Object(plumbing.CommitObject, *hash)
+	if err != nil {
+		return nil, ErrGetDocument
+	}
 
 	tree, _ := commit.(*object.Commit).Tree()
 	file, err := tree.File(r.getDocumentPathRel(id))
@@ -95,11 +107,37 @@ func (r *Repository) GetDocumentAtRevision(id string, revisionHash string) (*Doc
 	buf.ReadFrom(reader)
 
 	return &Document{
-		ID:           id,
-		RevisionHash: hash.String(),
-		Body:         buf.String(),
-		UpdatedAt:    &commit.(*object.Commit).Author.When,
+		ID:   id,
+		Body: buf.String(),
+		Revision: DocumentRevision{
+			Hash:      hash.String(),
+			UpdatedAt: &commit.(*object.Commit).Author.When,
+		},
 	}, nil
+}
+
+// GetDocumentRevisions returns all revisions of the document.
+// TODO - Implement pagination
+func (r *Repository) GetDocumentRevisions(id string) ([]DocumentRevision, error) {
+	fileName := r.getDocumentPathRel(id)
+	iter, err := r.gitRepo.Log(&git.LogOptions{
+		Order:    git.LogOrderCommitterTime,
+		FileName: &fileName,
+	})
+	if err != nil {
+		return nil, ErrGetDocument
+	}
+
+	var revs []DocumentRevision
+	iter.ForEach(func(commit *object.Commit) error {
+		revs = append(revs, DocumentRevision{
+			Hash:      commit.Hash.String(),
+			UpdatedAt: &commit.Author.When,
+		})
+		return nil
+	})
+
+	return revs, nil
 }
 
 // UpdateDocument update the body of existing document and create new revision.
@@ -133,9 +171,47 @@ func (r *Repository) UpdateDocument(id string, newBody string) (*Document, error
 	}
 
 	return &Document{
-		ID:           id,
-		RevisionHash: hash.String(),
-		Body:         newBody,
-		UpdatedAt:    &now,
+		ID:   id,
+		Body: newBody,
+		Revision: DocumentRevision{
+			Hash:      hash.String(),
+			UpdatedAt: &now,
+		},
 	}, nil
+}
+
+// CompareOutputOption is a type for options to select the style of diffs.
+type CompareOutputOption int8
+
+const (
+	// CompareOutputHTML is a option to present diffs as HTML string.
+	CompareOutputHTML CompareOutputOption = iota
+
+	// CompareOutputText is a option to present diffs as a colored string.
+	// Recommended for terminal uses.
+	CompareOutputText
+)
+
+// CompareDocumentRevisions show diffs of two revisions of the document.
+func (r *Repository) CompareDocumentRevisions(id, revHashFrom, revHashTo string, typ CompareOutputOption) (string, error) {
+	docFrom, err := r.GetDocumentAtRevision(id, revHashFrom)
+	if err != nil {
+		return "", err
+	}
+	docTo, err := r.GetDocumentAtRevision(id, revHashTo)
+	if err != nil {
+		return "", err
+	}
+
+	dmp := diffmatchpatch.New()
+	diffs := dmp.DiffMain(docFrom.Body, docTo.Body, true)
+
+	switch typ {
+	case CompareOutputHTML:
+		return dmp.DiffPrettyHtml(diffs), nil
+	case CompareOutputText:
+		return dmp.DiffPrettyText(diffs), nil
+	default:
+		return "", ErrInvalidOption
+	}
 }
