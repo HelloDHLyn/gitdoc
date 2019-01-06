@@ -88,6 +88,21 @@ func (r *Repository) GetDocument(id string) (*Document, error) {
 	return r.GetDocumentAtRevision(id, head.Hash().String())
 }
 
+// GetDocumentIDs returns list of id for all documents.
+// TODO - Implement pagination
+func (r *Repository) GetDocumentIDs() ([]string, error) {
+	files, err := ioutil.ReadDir(r.getDocumentPath(""))
+	if err != nil {
+		return nil, ErrGetDocument
+	}
+
+	var ids []string
+	for _, f := range files {
+		ids = append(ids, f.Name())
+	}
+	return ids, nil
+}
+
 // GetDocumentAtRevision returns specific revision of the document.
 func (r *Repository) GetDocumentAtRevision(id string, revisionHash string) (*Document, error) {
 	hash, _ := r.gitRepo.ResolveRevision(plumbing.Revision(revisionHash))

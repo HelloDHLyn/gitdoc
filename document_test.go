@@ -9,6 +9,8 @@ var (
 	testDocID    = "test_id"
 	testDocBody1 = "This is a content for test document."
 	testDocBody2 = "This is a content for test document.\nAnd it's new!"
+
+	testDocIDs = []string{"ID!@#$", "한글ID", "日本語ID", "ID With Whitespace"}
 )
 
 func TestDocument(t *testing.T) {
@@ -27,6 +29,16 @@ func TestDocument(t *testing.T) {
 		fmt.Printf("CreateDocument failed: invalid data - %v\n", doc)
 		t.Fail()
 		return
+	}
+
+	// create new document with non-ascii id
+	for _, id := range testDocIDs {
+		_, err = testRepo.CreateDocument(id, testDocBody1)
+		if err != nil {
+			fmt.Printf("CreateDocument failed: %v\n", err)
+			t.Fail()
+			return
+		}
 	}
 
 	// create document with existing id (should fail)
@@ -140,10 +152,33 @@ func TestDocument(t *testing.T) {
 		return
 	}
 
+	/// ===== Test GetDocumentIDs =====
+	// get document ids
+	ids, err := testRepo.GetDocumentIDs()
+	if err != nil {
+		fmt.Printf("GetDocumentIDs failed: %v\n", err)
+		t.Fail()
+		return
+	}
+	if len(ids) != 5 {
+		fmt.Printf("GetDocumentIDs return invalid data: %v\n", ids)
+		t.Fail()
+		return
+	}
+
 	/// ===== Test CompareDocumentRevisions =====
-	// compare revisions
+	// compare revisions (with HTML output)
 	diffs, err := testRepo.CompareDocumentRevisions(testDocID, revs[1].Hash, revs[0].Hash, CompareOutputHTML)
 	expectedDiffs := "<span>This is a content for test document.</span><ins style=\"background:#e6ffe6;\">&para;<br>And it&#39;s new!</ins>"
+	if diffs != expectedDiffs {
+		fmt.Println("CompareDocumentRevisions returns invalid data")
+		t.Fail()
+		return
+	}
+
+	// compare revisions (with text output)
+	diffs, err = testRepo.CompareDocumentRevisions(testDocID, revs[1].Hash, revs[0].Hash, CompareOutputText)
+	expectedDiffs = "This is a content for test document.\x1b[32m\nAnd it's new!\x1b[0m"
 	if diffs != expectedDiffs {
 		fmt.Println("CompareDocumentRevisions returns invalid data")
 		t.Fail()
